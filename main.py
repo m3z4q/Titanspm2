@@ -335,38 +335,42 @@ async def ai_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
         r = requests.get(AI_API_URL.format(query), timeout=10)
         data = r.json()
         reply = data.get("reply") or data.get("response") or "No response."
-        reply += "\n\n— @TITANXBOTMAKING"
+        reply += f"\n\n— {FORCE_CHANNEL}"
         await update.message.reply_text(reply)
     except Exception as e:
         logger.error(f"AI chat error: {e}")
         await update.message.reply_text("⚠️ AI error occurred.")
 
-app = Application.builder().token(BOT_TOKEN).build()
+async def main():
+    app = Application.builder().token(BOT_TOKEN).build()
 
-app.add_handler(CommandHandler("start", start))
-app.add_handler(CommandHandler("help", help_cmd))
+    app.add_handler(CommandHandler("start", start))
+    app.add_handler(CommandHandler("help", help_cmd))
 
-app.add_handler(CommandHandler("ping", ping))
-app.add_handler(CommandHandler("info", info))
-app.add_handler(CommandHandler("sysinfo", sysinfo))
-app.add_handler(CommandHandler("qr", qr_cmd))
+    app.add_handler(CommandHandler("ping", ping))
+    app.add_handler(CommandHandler("info", info))
+    app.add_handler(CommandHandler("sysinfo", sysinfo))
+    app.add_handler(CommandHandler("qr", qr_cmd))
 
-app.add_handler(CommandHandler("spam", spam))
-app.add_handler(CommandHandler("stopspam", stopspam))
-app.add_handler(CommandHandler("flood", flood))
+    app.add_handler(CommandHandler("spam", spam))
+    app.add_handler(CommandHandler("stopspam", stopspam))
+    app.add_handler(CommandHandler("flood", flood))
 
-app.add_handler(CommandHandler("gcnc", gcnc))
-app.add_handler(CommandHandler("stopgcnc", stopgcnc))
+    app.add_handler(CommandHandler("gcnc", gcnc))
+    app.add_handler(CommandHandler("stopgcnc", stopgcnc))
 
-app.add_handler(CommandHandler("raid", raid))
-app.add_handler(CommandHandler("stopraid", stopraid))
+    app.add_handler(CommandHandler("raid", raid))
+    app.add_handler(CommandHandler("stopraid", stopraid))
 
-app.add_handler(CommandHandler("ban", ban))
-app.add_handler(CommandHandler("mute", mute))
+    app.add_handler(CommandHandler("ban", ban))
+    app.add_handler(CommandHandler("mute", mute))
 
-app.add_handler(CommandHandler("broadcast", broadcast))
-app.add_handler(CommandHandler("stats", stats))
+    app.add_handler(CommandHandler("broadcast", broadcast))
+    app.add_handler(CommandHandler("stats", stats))
 
-app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, ai_chat))
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, ai_chat))
 
-app.run_polling()
+    await app.run_polling()
+
+if __name__ == "__main__":
+    asyncio.run(main())
