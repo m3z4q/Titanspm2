@@ -24,12 +24,12 @@ from telegram.error import RetryAfter, BadRequest
 # ================= CONFIG =================
 
 BOT_TOKEN = "8487272111:AAEkEnUUuOg-YuJxyGS0z9lqGhhWn6HPokU"
-OWNER_ID = 8453291493
+OWNER_ID = 8453291493  # Replace with your Telegram user ID
 
-FORCE_CHANNEL = "@TITANXBOTMAKING"
-FORCE_CHANNEL_URL = "https://t.me/TITANXBOTMAKING"
+FORCE_CHANNEL = "@TITANXBOTMAKING"  # Replace with your channel username
+FORCE_CHANNEL_URL = "https://t.me/TITANXBOTMAKING"  # Replace with your channel URL
 
-AI_API_URL = "https://deepseek-op.hosters.club/api/?q={}"
+AI_API_URL = "https://deepseek-op.hosters.club/api/?q={}"  # Replace with your AI API URL
 
 EMOJIS = [
     "🔥","⚡","💀","👑","😈","🚀","💥","🌀","🧨","🎯",
@@ -97,18 +97,24 @@ async def start(update, context):
 async def help_cmd(update, context):
     await update.message.reply_text(
         "🔧 UTILITIES\n"
-        "/ping\n/info\n/sysinfo\n/qr <text>\n\n"
+        "/ping - Check bot latency\n"
+        "/info - Chat information\n"
+        "/sysinfo - System statistics\n"
+        "/qr <text> - Generate QR code\n\n"
         "💬 CHAT TOOLS (Admin Only)\n"
-        "/spam <n> <text>\n"
-        "/stopspam\n"
-        "/flood <n> <text>\n"
-        "/gcnc <n> <name>\n"
-        "/stopgcnc\n"
-        "/raid\n/stopraid\n\n"
+        "/spam <n> <text> - Spam messages\n"
+        "/stopspam - Stop spam\n"
+        "/flood <n> <text> - Flood messages\n"
+        "/gcnc <n> <name> - Group name change\n"
+        "/stopgcnc - Stop GCNC\n"
+        "/raid - Start raid mode\n"
+        "/stopraid - Stop raid mode\n\n"
         "👮 ADMIN\n"
-        "/ban (reply)\n/mute\n\n"
+        "/ban (reply) - Ban a user\n"
+        "/mute (reply) - Mute a user\n\n"
         "🔐 OWNER\n"
-        "/broadcast <msg>\n/stats\n\n"
+        "/broadcast <msg> - Broadcast message\n"
+        "/stats - Show stats\n\n"
         "© Bot Framework by @TITANXCONTACT"
     )
 
