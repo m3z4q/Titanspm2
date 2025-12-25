@@ -300,8 +300,6 @@ Powered by {CHANNEL_USERNAME}
 
     async def run(self):
         print("Bot started...")
-        await self.app.initialize()
-        await self.app.start()
         await self.app.run_polling()
 
 if __name__ == "__main__":
