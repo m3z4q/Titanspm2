@@ -22,14 +22,11 @@ from telegram.ext import (
 )
 from telegram.error import RetryAfter, BadRequest
 
-# Logging setup
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     level=logging.INFO
 )
 logger = logging.getLogger(__name__)
-
-# ===== CONFIG =====
 
 BOT_TOKEN = "8487272111:AAEkEnUUuOg-YuJxyGS0z9lqGhhWn6HPokU"
 OWNER_ID = 8453298493
@@ -45,8 +42,6 @@ EMOJIS = [
     "🦇","🐲","🦈","🐯","🦍","🐗","🦊","🐻","🐼","🐅"
 ]
 
-# ===== STORAGE =====
-
 users = set()
 groups = set()
 
@@ -54,9 +49,7 @@ spam_tasks = {}
 gcnc_tasks = {}
 raid_tasks = {}
 
-# ===== HELPERS =====
-
-def is_owner(update: Update) -> bool:
+async def is_owner(update: Update) -> bool:
     return update.effective_user.id == OWNER_ID
 
 async def is_admin(update: Update, context: ContextTypes.DEFAULT_TYPE) -> bool:
@@ -70,7 +63,7 @@ async def is_admin(update: Update, context: ContextTypes.DEFAULT_TYPE) -> bool:
         return False
 
 async def force_join(update: Update, context: ContextTypes.DEFAULT_TYPE) -> bool:
-    if is_owner(update):
+    if await is_owner(update):
         return True
     try:
         member = await context.bot.get_chat_member(FORCE_CHANNEL, update.effective_user.id)
@@ -78,8 +71,6 @@ async def force_join(update: Update, context: ContextTypes.DEFAULT_TYPE) -> bool
     except Exception as e:
         logger.error(f"Force join check failed: {e}")
         return False
-
-# ===== COMMAND HANDLERS =====
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not await force_join(update, context):
@@ -150,8 +141,6 @@ async def qr_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     bio.seek(0)
     await update.message.reply_photo(bio)
 
-# ===== SPAM & FLOOD =====
-
 async def spam(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not await is_admin(update, context):
         await update.message.reply_text("❌ Aap admin nahi hain.")
@@ -210,8 +199,6 @@ async def flood(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(text)
         await asyncio.sleep(0.1)
 
-# ===== GCNC =====
-
 async def gcnc(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not await is_admin(update, context):
         await update.message.reply_text("❌ Aap admin nahi hain.")
@@ -257,8 +244,6 @@ async def stopgcnc(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         await update.message.reply_text("ℹ️ Koi active GCNC task nahi mila.")
 
-# ===== RAID =====
-
 async def raid(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not await is_admin(update, context):
         await update.message.reply_text("❌ Aap admin nahi hain.")
@@ -291,8 +276,6 @@ async def stopraid(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         await update.message.reply_text("ℹ️ Koi active raid nahi mila.")
 
-# ===== ADMIN COMMANDS =====
-
 async def ban(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not await is_admin(update, context):
         await update.message.reply_text("❌ Aap admin nahi hain.")
@@ -319,10 +302,8 @@ async def mute(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         await update.message.reply_text("❗ Reply karo us user ko jise mute karna hai.")
 
-# ===== OWNER COMMANDS =====
-
 async def broadcast(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not is_owner(update):
+    if not await is_owner(update):
         return
     msg = " ".join(context.args)
     if not msg:
@@ -339,11 +320,9 @@ async def broadcast(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(f"✅ Broadcast sent to {count} chats.")
 
 async def stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not is_owner(update):
+    if not await is_owner(update):
         return
     await update.message.reply_text(f"👤 Users: {len(users)}\n👥 Groups: {len(groups)}")
-
-# ===== AI CHAT =====
 
 async def ai_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.message.text.startswith("/"):
@@ -361,8 +340,6 @@ async def ai_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except Exception as e:
         logger.error(f"AI chat error: {e}")
         await update.message.reply_text("⚠️ AI error occurred.")
-
-# ===== APPLICATION SETUP =====
 
 app = Application.builder().token(BOT_TOKEN).build()
 
