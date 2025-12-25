@@ -22,17 +22,17 @@ from telegram.ext import (
 )
 from telegram.error import RetryAfter, BadRequest
 
-# Enable logging for debugging
+# Logging setup
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     level=logging.INFO
 )
 logger = logging.getLogger(__name__)
 
-# ========== CONFIG ==========
+# ===== CONFIG =====
 
 BOT_TOKEN = "8487272111:AAEkEnUUuOg-YuJxyGS0z9lqGhhWn6HPokU"
-OWNER_ID = 8453298493  # Your Telegram ID as int
+OWNER_ID = 8453298493
 FORCE_CHANNEL = "@TITANXBOTMAKING"
 FORCE_CHANNEL_URL = "https://t.me/TITANXBOTMAKING"
 AI_API_URL = "https://deepseek-op.hosters.club/api/?q={}"
@@ -45,7 +45,7 @@ EMOJIS = [
     "🦇","🐲","🦈","🐯","🦍","🐗","🦊","🐻","🐼","🐅"
 ]
 
-# ========== STORAGE ==========
+# ===== STORAGE =====
 
 users = set()
 groups = set()
@@ -54,7 +54,7 @@ spam_tasks = {}
 gcnc_tasks = {}
 raid_tasks = {}
 
-# ========== HELPERS ==========
+# ===== HELPERS =====
 
 def is_owner(update: Update) -> bool:
     return update.effective_user.id == OWNER_ID
@@ -79,7 +79,7 @@ async def force_join(update: Update, context: ContextTypes.DEFAULT_TYPE) -> bool
         logger.error(f"Force join check failed: {e}")
         return False
 
-# ========== COMMAND HANDLERS ==========
+# ===== COMMAND HANDLERS =====
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not await force_join(update, context):
@@ -150,10 +150,11 @@ async def qr_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     bio.seek(0)
     await update.message.reply_photo(bio)
 
-# ========== SPAM & FLOOD ==========
+# ===== SPAM & FLOOD =====
 
 async def spam(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not await is_admin(update, context):
+        await update.message.reply_text("❌ Aap admin nahi hain.")
         return
     chat_id = update.effective_chat.id
     try:
@@ -174,21 +175,27 @@ async def spam(update: Update, context: ContextTypes.DEFAULT_TYPE):
         except asyncio.CancelledError:
             pass
 
+    if chat_id in spam_tasks:
+        await update.message.reply_text("❗ Spam already chal raha hai. /stopspam se roko pehle.")
+        return
+
     spam_tasks[chat_id] = asyncio.create_task(loop())
     await update.message.reply_text("✅ Spam started")
 
 async def stopspam(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not await is_admin(update, context):
+        await update.message.reply_text("❌ Aap admin nahi hain.")
         return
     task = spam_tasks.pop(update.effective_chat.id, None)
     if task:
         task.cancel()
         await update.message.reply_text("🛑 Spam stopped")
     else:
-        await update.message.reply_text("ℹ️ No active spam task found.")
+        await update.message.reply_text("ℹ️ Koi active spam task nahi mila.")
 
 async def flood(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not await is_admin(update, context):
+        await update.message.reply_text("❌ Aap admin nahi hain.")
         return
     try:
         n = int(context.args[0])
@@ -203,10 +210,11 @@ async def flood(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(text)
         await asyncio.sleep(0.1)
 
-# ========== GCNC ==========
+# ===== GCNC =====
 
 async def gcnc(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not await is_admin(update, context):
+        await update.message.reply_text("❌ Aap admin nahi hain.")
         return
     chat = update.effective_chat
     try:
@@ -231,23 +239,29 @@ async def gcnc(update: Update, context: ContextTypes.DEFAULT_TYPE):
         except BadRequest:
             await asyncio.sleep(5)
 
+    if chat.id in gcnc_tasks:
+        await update.message.reply_text("❗ GCNC already chal raha hai. /stopgcnc se roko pehle.")
+        return
+
     gcnc_tasks[chat.id] = asyncio.create_task(loop())
     await update.message.reply_text("✅ GCNC started")
 
 async def stopgcnc(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not await is_admin(update, context):
+        await update.message.reply_text("❌ Aap admin nahi hain.")
         return
     task = gcnc_tasks.pop(update.effective_chat.id, None)
     if task:
         task.cancel()
         await update.message.reply_text("🛑 GCNC stopped")
     else:
-        await update.message.reply_text("ℹ️ No active GCNC task found.")
+        await update.message.reply_text("ℹ️ Koi active GCNC task nahi mila.")
 
-# ========== RAID ==========
+# ===== RAID =====
 
 async def raid(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not await is_admin(update, context):
+        await update.message.reply_text("❌ Aap admin nahi hain.")
         return
     cid = update.effective_chat.id
 
@@ -259,33 +273,40 @@ async def raid(update: Update, context: ContextTypes.DEFAULT_TYPE):
         except asyncio.CancelledError:
             pass
 
+    if cid in raid_tasks:
+        await update.message.reply_text("❗ Raid already chal raha hai. /stopraid se roko pehle.")
+        return
+
     raid_tasks[cid] = asyncio.create_task(loop())
     await update.message.reply_text("✅ Raid started")
 
 async def stopraid(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not await is_admin(update, context):
+        await update.message.reply_text("❌ Aap admin nahi hain.")
         return
     t = raid_tasks.pop(update.effective_chat.id, None)
     if t:
         t.cancel()
         await update.message.reply_text("🛑 Raid stopped")
     else:
-        await update.message.reply_text("ℹ️ No active raid found.")
+        await update.message.reply_text("ℹ️ Koi active raid nahi mila.")
 
-# ========== ADMIN COMMANDS ==========
+# ===== ADMIN COMMANDS =====
 
 async def ban(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not await is_admin(update, context):
+        await update.message.reply_text("❌ Aap admin nahi hain.")
         return
     if update.message.reply_to_message:
         user = update.message.reply_to_message.from_user
         await context.bot.ban_chat_member(update.effective_chat.id, user.id)
         await update.message.reply_text(f"User {user.first_name} banned.")
     else:
-        await update.message.reply_text("❗ Reply to a user to ban.")
+        await update.message.reply_text("❗ Reply karo us user ko jise ban karna hai.")
 
 async def mute(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not await is_admin(update, context):
+        await update.message.reply_text("❌ Aap admin nahi hain.")
         return
     if update.message.reply_to_message:
         user = update.message.reply_to_message.from_user
@@ -296,9 +317,9 @@ async def mute(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         await update.message.reply_text(f"User {user.first_name} muted.")
     else:
-        await update.message.reply_text("❗ Reply to a user to mute.")
+        await update.message.reply_text("❗ Reply karo us user ko jise mute karna hai.")
 
-# ========== OWNER COMMANDS ==========
+# ===== OWNER COMMANDS =====
 
 async def broadcast(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not is_owner(update):
@@ -322,7 +343,7 @@ async def stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     await update.message.reply_text(f"👤 Users: {len(users)}\n👥 Groups: {len(groups)}")
 
-# ========== AI CHAT ==========
+# ===== AI CHAT =====
 
 async def ai_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.message.text.startswith("/"):
@@ -341,11 +362,9 @@ async def ai_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
         logger.error(f"AI chat error: {e}")
         await update.message.reply_text("⚠️ AI error occurred.")
 
-# ========== APPLICATION SETUP ==========
+# ===== APPLICATION SETUP =====
 
 app = Application.builder().token(BOT_TOKEN).build()
-
-# Register handlers
 
 app.add_handler(CommandHandler("start", start))
 app.add_handler(CommandHandler("help", help_cmd))
@@ -373,5 +392,4 @@ app.add_handler(CommandHandler("stats", stats))
 
 app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, ai_chat))
 
-# Run the bot
 app.run_polling()
