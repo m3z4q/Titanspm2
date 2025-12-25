@@ -3,7 +3,7 @@ import random
 from telegram.ext import Application, CommandHandler, MessageHandler, filters
 from telegram.error import RetryAfter, BadRequest
 
-BOT_TOKEN = "8519181173:AAF9dPbQ5J5N_Q6iAaQBULFpaDJTX_CNmGs"
+BOT_TOKEN = "8487272111:AAEkEnUUuOg-YuJxyGS0z9lqGhhWn6HPokU"
 
 EMOJIS = ["🔥","⚡","💀","👑","😈","🚀","💥","🌀","🧨","🎯","🐉","🦁","☠️"]
 
