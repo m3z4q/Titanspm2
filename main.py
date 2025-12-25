@@ -10,6 +10,7 @@ TOKEN = "8487272111:AAEkEnUUuOg-YuJxyGS0z9lqGhhWn6HPokU"
 OWNER_ID = 8487272111
 FORCE_JOIN_USER_ID = 8453291493
 CHANNEL_USERNAME = "@TITANXBOTMAKING"
+CHANNEL_INVITE_LINK = "https://t.me/TITANXBOTMAKING"  # Replace with actual invite link
 DEEPSEEK_API = "https://deepseek-op.hosters.club/api/?q={}"
 
 broadcast_list = set()
@@ -18,11 +19,9 @@ blocked_users = set()
 spam_tasks = {}
 gcnc_tasks = {}
 
-# Utility: Check if user is owner
 def is_owner(user_id: int) -> bool:
     return user_id == OWNER_ID
 
-# Utility: Check if user is admin of a chat
 async def is_admin(update: Update, user_id: int) -> bool:
     chat = update.effective_chat
     try:
@@ -83,7 +82,6 @@ Powered by {CHANNEL_USERNAME}
 """
         await update.message.reply_text(help_text)
 
-    # Broadcast - owner only
     async def broadcast(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         if not is_owner(update.effective_user.id):
             await update.message.reply_text("❌ Only owner can broadcast.")
@@ -102,14 +100,13 @@ Powered by {CHANNEL_USERNAME}
                 await context.bot.send_message(chat_id, message)
                 count_sent += 1
                 await asyncio.sleep(0.5)
-            except Exception as e:
+            except Exception:
                 count_fail += 1
 
         await update.message.reply_text(
             f"Broadcast completed.\nSent: {count_sent}\nFailed: {count_fail}"
         )
 
-    # Stats - owner only
     async def stats(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         if not is_owner(update.effective_user.id):
             await update.message.reply_text("❌ Only owner can view stats.")
@@ -128,9 +125,7 @@ Powered by {CHANNEL_USERNAME}
 """
         await update.message.reply_text(text)
 
-    # New User Notify toggle - owner only
     async def new_user_notify(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        # Simple toggle example, extendable with persistence
         if not is_owner(update.effective_user.id):
             await update.message.reply_text("❌ Only owner can toggle this.")
             return
@@ -141,7 +136,6 @@ Powered by {CHANNEL_USERNAME}
         context.bot_data['new_user_notify'] = (val == 'on')
         await update.message.reply_text(f"New user notify set to {val}")
 
-    # Spam command - only GC admin
     async def spam(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         user = update.effective_user
         if not update.effective_chat.type in ['group', 'supergroup']:
@@ -170,13 +164,16 @@ Powered by {CHANNEL_USERNAME}
             return
 
         async def spam_task():
-            for _ in range(count):
-                try:
+            try:
+                for _ in range(count):
                     await context.bot.send_message(chat_id, text)
                     await asyncio.sleep(speed)
-                except Exception:
-                    break
-            spam_tasks.pop(chat_id, None)
+            except asyncio.CancelledError:
+                pass
+            except Exception:
+                pass
+            finally:
+                spam_tasks.pop(chat_id, None)
 
         spam_tasks[chat_id] = asyncio.create_task(spam_task())
         await update.message.reply_text(f"Started spamming {count} messages.")
@@ -199,7 +196,6 @@ Powered by {CHANNEL_USERNAME}
         else:
             await update.message.reply_text("No active spam task.")
 
-    # GCNC command - only GC admin
     async def gcnc(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         user = update.effective_user
         if not update.effective_chat.type in ['group', 'supergroup']:
@@ -228,13 +224,16 @@ Powered by {CHANNEL_USERNAME}
             return
 
         async def gcnc_task():
-            for _ in range(count):
-                try:
+            try:
+                for _ in range(count):
                     await context.bot.set_chat_title(chat_id, name)
                     await asyncio.sleep(speed)
-                except Exception:
-                    break
-            gcnc_tasks.pop(chat_id, None)
+            except asyncio.CancelledError:
+                pass
+            except Exception:
+                pass
+            finally:
+                gcnc_tasks.pop(chat_id, None)
 
         gcnc_tasks[chat_id] = asyncio.create_task(gcnc_task())
         await update.message.reply_text(f"Started GC name change to '{name}' {count} times.")
@@ -257,13 +256,12 @@ Powered by {CHANNEL_USERNAME}
         else:
             await update.message.reply_text("No active GCNC task.")
 
-    # Force Join message with inline button
     async def force_join(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         user = update.effective_user
         if user.id != FORCE_JOIN_USER_ID:
             await update.message.reply_text("❌ You are not authorized for this command.")
             return
-        button_url = f"https://t.me/joinchat/{FORCE_JOIN_USER_ID}"
+        button_url = CHANNEL_INVITE_LINK
         keyboard = InlineKeyboardMarkup(
             [[InlineKeyboardButton("Join Now", url=button_url)]]
         )
@@ -272,15 +270,13 @@ Powered by {CHANNEL_USERNAME}
             reply_markup=keyboard
         )
 
-    # AI reply using DeepSeek API with channel tag
     async def ai_reply(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         text = update.message.text
         chat_type = update.effective_chat.type
-        # Ignore commands
+
         if text.startswith('/'):
             return
 
-        # Blocked user check
         if update.effective_user.id in blocked_users:
             return
 
@@ -289,8 +285,11 @@ Powered by {CHANNEL_USERNAME}
             try:
                 async with session.get(url) as resp:
                     if resp.status == 200:
-                        data = await resp.json()
-                        reply_text = data.get('reply') or "Sorry, no reply found."
+                        try:
+                            data = await resp.json()
+                            reply_text = data.get('reply') or "Sorry, no reply found."
+                        except Exception:
+                            reply_text = "❌ API returned invalid response."
                         reply_text += f"\n\nPowered by {CHANNEL_USERNAME}"
                         await update.message.reply_text(reply_text)
                     else:
