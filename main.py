@@ -1,401 +1,309 @@
 import asyncio
-import time
-import random
 import aiohttp
+import time
 from datetime import datetime
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import (
-    Application, CommandHandler, MessageHandler, filters, ContextTypes
-)
-from telegram.error import RetryAfter, BadRequest
+from telegram import Update, ChatMember, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
+from telegram.error import RetryAfter
 
-# Configurations
 TOKEN = "8487272111:AAEkEnUUuOg-YuJxyGS0z9lqGhhWn6HPokU"
 OWNER_ID = 8487272111
-CHANNEL_USERNAME = "@TITANXBOTMAKING"
 FORCE_JOIN_USER_ID = 8453291493
+CHANNEL_USERNAME = "@TITANXBOTMAKING"
 DEEPSEEK_API = "https://deepseek-op.hosters.club/api/?q={}"
 
-EMOJIS = [
-    "🔥","⚡","💀","👑","😈","🚀","💥","🌀","🧨","🎯","🐉","🦁","☠️",
-    "🌟","🌈","💫","✨","💣","🎉","🎊","🚨","⚔️","🛡️","💎","🎵","🎶",
-    "🌪️","⚡","🕷️","🦄","🦅","🐺","🐍","🐢","🐬","🦖","🦈","🐉","👹",
-    "👻","🤖","🧙‍♂️","🧛‍♂️","🧟‍♂️","💀","👽","👾","🎃","🛸","🚁","🚀",
-    "🛡️","⚔️","🗡️","🔫","🧨","💣"
-]
-
-# Storage
 broadcast_list = set()
-gcnc_tasks = {}
-spam_tasks = {}
 raid_tasks = {}
 blocked_users = set()
+spam_tasks = {}
+gcnc_tasks = {}
 
-class Bot:
+# Utility: Check if user is owner
+def is_owner(user_id: int) -> bool:
+    return user_id == OWNER_ID
+
+# Utility: Check if user is admin of a chat
+async def is_admin(update: Update, user_id: int) -> bool:
+    chat = update.effective_chat
+    try:
+        member = await chat.get_member(user_id)
+        return member.status in [ChatMember.ADMINISTRATOR, ChatMember.CREATOR]
+    except:
+        return False
+
+class TelegramBot:
     def __init__(self):
         self.app = Application.builder().token(TOKEN).build()
         self.setup_handlers()
-
-    def is_owner(self, user_id):
-        return user_id == OWNER_ID
-
-    async def is_chat_admin(self, update: Update):
-        user_id = update.effective_user.id
-        chat = update.effective_chat
-
-        if chat.type == "private":
-            return True  # private chat, treat as admin for ease
-
-        member = await self.app.bot.get_chat_member(chat.id, user_id)
-        return member.status in ["administrator", "creator"]
+        self.app.bot_data['start_time'] = time.time()
 
     def setup_handlers(self):
-        # Basic commands
         self.app.add_handler(CommandHandler("start", self.start))
         self.app.add_handler(CommandHandler("help", self.help_command))
-        self.app.add_handler(CommandHandler("ping", self.ping))
-        self.app.add_handler(CommandHandler("info", self.info))
-        self.app.add_handler(CommandHandler("sysinfo", self.sysinfo))
 
-        # Owner-only commands
         self.app.add_handler(CommandHandler("broadcast", self.broadcast))
         self.app.add_handler(CommandHandler("stats", self.stats))
+        self.app.add_handler(CommandHandler("newusernotify", self.new_user_notify))
 
-        # Chat commands restricted to admins only
         self.app.add_handler(CommandHandler("spam", self.spam))
         self.app.add_handler(CommandHandler("stopspam", self.stop_spam))
         self.app.add_handler(CommandHandler("gcnc", self.gcnc))
         self.app.add_handler(CommandHandler("stopgcnc", self.stop_gcnc))
-        self.app.add_handler(CommandHandler("flood", self.flood))
-        self.app.add_handler(CommandHandler("raid", self.raid))
-        self.app.add_handler(CommandHandler("stopraid", self.stop_raid))
 
-        # AI chat reply
-        self.app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, self.ai_reply))
+        self.app.add_handler(CommandHandler("forcejoin", self.force_join))
+
+        self.app.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), self.ai_reply))
 
     async def start(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        chat_id = update.effective_chat.id
-        if chat_id not in broadcast_list:
-            broadcast_list.add(chat_id)
-
-        keyboard = [
-            [InlineKeyboardButton("👉 Join Channel 👈", url=f"https://t.me/{CHANNEL_USERNAME.lstrip('@')}")]
-        ]
-        reply_markup = InlineKeyboardMarkup(keyboard)
-
         await update.message.reply_text(
-            f"🤖 Bot Online!\nUse /help for commands.\n\nPlease join our channel: {CHANNEL_USERNAME}",
-            reply_markup=reply_markup
+            f"Hello! Use /help to see commands.\n\nPowered by {CHANNEL_USERNAME}"
         )
 
     async def help_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        help_text = f"""🔧 UTILITIES
-/ping - Check bot latency
-/info - Chat information
-/sysinfo - System statistics
+        help_text = f"""
+🔧 UTILITIES
+/start - Start the bot
+/help - Show this help
 
-💬 CHAT TOOLS (Admin only)
+💬 CHAT TOOLS (Admin only in GC)
 /spam <count> <text> <speed> - Spam messages
 /stopspam - Stop spam
-/gcnc <count> <name> <speed> - Group name change
-/stopgcnc - Stop group name change
-/flood <count> <text> <speed> - Flood messages
-/raid <count> <text> - Start raid
-/stopraid - Stop raid
+/gcnc <count> <name> <speed> - Change GC name repeatedly
+/stopgcnc - Stop GC name change
 
-👮 OWNER ONLY
-/broadcast <message> - Broadcast message to all groups
-/stats - Bot statistics
+🚨 OWNER COMMANDS
+/broadcast <message> - Broadcast to all chats
+/stats - Show bot stats
+/newusernotify on/off - New user join notify toggle
+/forcejoin - Force join button message
 
-───────
-🔧 Powered by {CHANNEL_USERNAME}"""
+AI chat: Just send a message in private or GC
+
+Powered by {CHANNEL_USERNAME}
+"""
         await update.message.reply_text(help_text)
 
-    async def ping(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        start_time = time.time()
-        msg = await update.message.reply_text("🏓 Pinging...")
-        end_time = time.time()
-        latency = round((end_time - start_time)*1000, 2)
-        await msg.edit_text(f"🏓 Pong!\nLatency: {latency}ms\n\n🔧 {CHANNEL_USERNAME}")
-
-    async def info(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        chat = update.effective_chat
-        user = update.effective_user
-        text = f"""📊 Chat Info
-
-Chat ID: {chat.id}
-Chat Type: {chat.type}
-Chat Title: {chat.title or 'N/A'}
-
-Your ID: {user.id}
-Username: {user.username or 'N/A'}
-Name: {user.full_name}
-
-───────
-🔧 Powered by {CHANNEL_USERNAME}"""
-        await update.message.reply_text(text)
-
-    async def sysinfo(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        uptime_seconds = time.time() - context.bot_data.get("start_time", time.time())
-        hours = int(uptime_seconds // 3600)
-        minutes = int((uptime_seconds % 3600) // 60)
-        text = f"""🖥 System Info
-
-Uptime: {hours}h {minutes}m
-
-───────
-🔧 Powered by {CHANNEL_USERNAME}"""
-        await update.message.reply_text(text)
-
+    # Broadcast - owner only
     async def broadcast(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        if not self.is_owner(update.effective_user.id):
-            await update.message.reply_text("❌ Only owner can broadcast!")
+        if not is_owner(update.effective_user.id):
+            await update.message.reply_text("❌ Only owner can broadcast.")
             return
 
         if not context.args:
-            await update.message.reply_text("❌ Usage: /broadcast <message>")
+            await update.message.reply_text("Usage: /broadcast <message>")
             return
 
-        message = ' '.join(context.args)
-        watermark = f"\n\n───────\n🔧 Powered by {CHANNEL_USERNAME}"
-        full_msg = f"📢 Broadcast message:\n\n{message}{watermark}"
-
-        sent = 0
-        failed = 0
-        status_msg = await update.message.reply_text("📢 Broadcasting...")
+        message = ' '.join(context.args) + f"\n\n{CHANNEL_USERNAME}"
+        count_sent = 0
+        count_fail = 0
 
         for chat_id in list(broadcast_list):
             try:
-                await context.bot.send_message(chat_id, full_msg)
-                sent += 1
-                await asyncio.sleep(0.3)
+                await context.bot.send_message(chat_id, message)
+                count_sent += 1
+                await asyncio.sleep(0.5)
             except Exception as e:
-                failed += 1
-                print(f"Broadcast failed to {chat_id}: {e}")
+                count_fail += 1
 
-        await status_msg.edit_text(f"✅ Broadcast completed!\nSent: {sent}\nFailed: {failed}")
+        await update.message.reply_text(
+            f"Broadcast completed.\nSent: {count_sent}\nFailed: {count_fail}"
+        )
 
+    # Stats - owner only
+    async def stats(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        if not is_owner(update.effective_user.id):
+            await update.message.reply_text("❌ Only owner can view stats.")
+            return
+
+        uptime_seconds = int(time.time() - context.bot_data['start_time'])
+        uptime_str = str(datetime.utcfromtimestamp(uptime_seconds).strftime("%H:%M:%S"))
+
+        text = f"""
+Bot Stats:
+Uptime: {uptime_str}
+Chats: {len(broadcast_list)}
+Blocked Users: {len(blocked_users)}
+
+Powered by {CHANNEL_USERNAME}
+"""
+        await update.message.reply_text(text)
+
+    # New User Notify toggle - owner only
+    async def new_user_notify(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        # Simple toggle example, extendable with persistence
+        if not is_owner(update.effective_user.id):
+            await update.message.reply_text("❌ Only owner can toggle this.")
+            return
+        if not context.args or context.args[0].lower() not in ['on', 'off']:
+            await update.message.reply_text("Usage: /newusernotify on/off")
+            return
+        val = context.args[0].lower()
+        context.bot_data['new_user_notify'] = (val == 'on')
+        await update.message.reply_text(f"New user notify set to {val}")
+
+    # Spam command - only GC admin
     async def spam(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        if not await self.is_chat_admin(update):
-            await update.message.reply_text("❌ Only group admins can use /spam!")
+        user = update.effective_user
+        if not update.effective_chat.type in ['group', 'supergroup']:
+            await update.message.reply_text("This command works only in groups.")
+            return
+        if not await is_admin(update, user.id):
+            await update.message.reply_text("❌ Only GC admins can use spam.")
             return
 
         if len(context.args) < 3:
-            await update.message.reply_text("❌ Usage: /spam <count> <text> <speed>")
+            await update.message.reply_text("Usage: /spam <count> <text> <speed>")
             return
 
         try:
             count = int(context.args[0])
             speed = float(context.args[-1])
-            text = " ".join(context.args[1:-1])
-        except Exception:
-            await update.message.reply_text("❌ Invalid parameters.")
+            text = ' '.join(context.args[1:-1])
+        except:
+            await update.message.reply_text("Invalid arguments. Usage: /spam <count> <text> <speed>")
             return
 
         chat_id = update.effective_chat.id
-
-        async def spam_loop():
-            for _ in range(count):
-                try:
-                    await context.bot.send_message(chat_id, text)
-                    await asyncio.sleep(speed)
-                except RetryAfter as e:
-                    await asyncio.sleep(e.retry_after)
-                except BadRequest:
-                    await asyncio.sleep(1)
 
         if chat_id in spam_tasks:
-            spam_tasks[chat_id].cancel()
-        spam_tasks[chat_id] = asyncio.create_task(spam_loop())
-        await update.message.reply_text("✅ Started spamming!")
-
-    async def stop_spam(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        if not await self.is_chat_admin(update):
-            await update.message.reply_text("❌ Only group admins can use /stopspam!")
+            await update.message.reply_text("Spam is already running. Use /stopspam to stop.")
             return
 
-        chat_id = update.effective_chat.id
-        task = spam_tasks.pop(chat_id, None)
-        if task:
-            task.cancel()
-            await update.message.reply_text("🛑 Spam stopped!")
-        else:
-            await update.message.reply_text("ℹ️ No active spam to stop.")
-
-    async def gcnc(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        if not await self.is_chat_admin(update):
-            await update.message.reply_text("❌ Only group admins can use /gcnc!")
-            return
-
-        if len(context.args) < 3:
-            await update.message.reply_text("❌ Usage: /gcnc <count> <name> <speed>")
-            return
-
-        try:
-            count = int(context.args[0])
-            name = context.args[1]
-            speed = float(context.args[2])
-        except Exception:
-            await update.message.reply_text("❌ Invalid parameters.")
-            return
-
-        chat_id = update.effective_chat.id
-
-        async def gcnc_loop():
-            for i in range(count):
-                try:
-                    new_title = f"{random.choice(EMOJIS)} {name} {i+1}"
-                    await context.bot.set_chat_title(chat_id, new_title)
-                    await asyncio.sleep(speed)
-                except RetryAfter as e:
-                    await asyncio.sleep(e.retry_after)
-                except BadRequest:
-                    await asyncio.sleep(2)
-
-        if chat_id in gcnc_tasks:
-            gcnc_tasks[chat_id].cancel()
-        gcnc_tasks[chat_id] = asyncio.create_task(gcnc_loop())
-        await update.message.reply_text("✅ Started GC name changer!")
-
-    async def stop_gcnc(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        if not await self.is_chat_admin(update):
-            await update.message.reply_text("❌ Only group admins can use /stopgcnc!")
-            return
-
-        chat_id = update.effective_chat.id
-        task = gcnc_tasks.pop(chat_id, None)
-        if task:
-            task.cancel()
-            await update.message.reply_text("🛑 GC name changer stopped!")
-        else:
-            await update.message.reply_text("ℹ️ No active GC name changer.")
-
-    async def flood(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        if not await self.is_chat_admin(update):
-            await update.message.reply_text("❌ Only group admins can use /flood!")
-            return
-
-        if len(context.args) < 3:
-            await update.message.reply_text("❌ Usage: /flood <count> <text> <speed>")
-            return
-
-        try:
-            count = int(context.args[0])
-            text = context.args[1]
-            speed = float(context.args[2])
-        except Exception:
-            await update.message.reply_text("❌ Invalid parameters.")
-            return
-
-        chat_id = update.effective_chat.id
-
-        for _ in range(count):
-            try:
-                await context.bot.send_message(chat_id, text)
-                await asyncio.sleep(speed)
-            except RetryAfter as e:
-                await asyncio.sleep(e.retry_after)
-            except BadRequest:
-                await asyncio.sleep(1)
-
-        await update.message.reply_text("✅ Flood completed!")
-
-    async def raid(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        if not await self.is_chat_admin(update):
-            await update.message.reply_text("❌ Only group admins can use /raid!")
-            return
-
-        if len(context.args) < 2:
-            await update.message.reply_text("❌ Usage: /raid <count> <text>")
-            return
-
-        try:
-            count = int(context.args[0])
-            text = " ".join(context.args[1:])
-        except Exception:
-            await update.message.reply_text("❌ Invalid parameters.")
-            return
-
-        chat_id = update.effective_chat.id
-
-        async def raid_loop():
+        async def spam_task():
             for _ in range(count):
                 try:
                     await context.bot.send_message(chat_id, text)
-                    await asyncio.sleep(0.5)
-                except RetryAfter as e:
-                    await asyncio.sleep(e.retry_after)
-                except BadRequest:
-                    await asyncio.sleep(1)
+                    await asyncio.sleep(speed)
+                except Exception:
+                    break
+            spam_tasks.pop(chat_id, None)
 
-        if chat_id in raid_tasks:
-            raid_tasks[chat_id].cancel()
-        raid_tasks[chat_id] = asyncio.create_task(raid_loop())
-        await update.message.reply_text("✅ Raid started!")
+        spam_tasks[chat_id] = asyncio.create_task(spam_task())
+        await update.message.reply_text(f"Started spamming {count} messages.")
 
-    async def stop_raid(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        if not await self.is_chat_admin(update):
-            await update.message.reply_text("❌ Only group admins can use /stopraid!")
+    async def stop_spam(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        user = update.effective_user
+        if not update.effective_chat.type in ['group', 'supergroup']:
+            await update.message.reply_text("This command works only in groups.")
+            return
+        if not await is_admin(update, user.id):
+            await update.message.reply_text("❌ Only GC admins can stop spam.")
             return
 
         chat_id = update.effective_chat.id
-        task = raid_tasks.pop(chat_id, None)
+        task = spam_tasks.get(chat_id)
         if task:
             task.cancel()
-            await update.message.reply_text("🛑 Raid stopped!")
+            spam_tasks.pop(chat_id, None)
+            await update.message.reply_text("Spam stopped.")
         else:
-            await update.message.reply_text("ℹ️ No active raid.")
+            await update.message.reply_text("No active spam task.")
 
-    async def stats(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        if not self.is_owner(update.effective_user.id):
-            await update.message.reply_text("❌ Owner only!")
+    # GCNC command - only GC admin
+    async def gcnc(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        user = update.effective_user
+        if not update.effective_chat.type in ['group', 'supergroup']:
+            await update.message.reply_text("This command works only in groups.")
+            return
+        if not await is_admin(update, user.id):
+            await update.message.reply_text("❌ Only GC admins can use GCNC.")
             return
 
-        uptime_seconds = time.time() - context.bot_data.get("start_time", time.time())
-        hours = int(uptime_seconds // 3600)
-        minutes = int((uptime_seconds % 3600) // 60)
+        if len(context.args) < 3:
+            await update.message.reply_text("Usage: /gcnc <count> <name> <speed>")
+            return
 
-        text = f"""📊 Bot Stats:
+        try:
+            count = int(context.args[0])
+            speed = float(context.args[-1])
+            name = ' '.join(context.args[1:-1])
+        except:
+            await update.message.reply_text("Invalid arguments. Usage: /gcnc <count> <name> <speed>")
+            return
 
-Uptime: {hours}h {minutes}m
-Active Groups: {len(broadcast_list)}
-Active Spam Tasks: {len(spam_tasks)}
-Active GCNC Tasks: {len(gcnc_tasks)}
-Active Raid Tasks: {len(raid_tasks)}
-Blocked Users: {len(blocked_users)}
+        chat_id = update.effective_chat.id
 
-───────
-🔧 Powered by {CHANNEL_USERNAME}"""
-        await update.message.reply_text(text)
+        if chat_id in gcnc_tasks:
+            await update.message.reply_text("GCNC is already running. Use /stopgcnc to stop.")
+            return
 
+        async def gcnc_task():
+            for _ in range(count):
+                try:
+                    await context.bot.set_chat_title(chat_id, name)
+                    await asyncio.sleep(speed)
+                except Exception:
+                    break
+            gcnc_tasks.pop(chat_id, None)
+
+        gcnc_tasks[chat_id] = asyncio.create_task(gcnc_task())
+        await update.message.reply_text(f"Started GC name change to '{name}' {count} times.")
+
+    async def stop_gcnc(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        user = update.effective_user
+        if not update.effective_chat.type in ['group', 'supergroup']:
+            await update.message.reply_text("This command works only in groups.")
+            return
+        if not await is_admin(update, user.id):
+            await update.message.reply_text("❌ Only GC admins can stop GCNC.")
+            return
+
+        chat_id = update.effective_chat.id
+        task = gcnc_tasks.get(chat_id)
+        if task:
+            task.cancel()
+            gcnc_tasks.pop(chat_id, None)
+            await update.message.reply_text("GCNC stopped.")
+        else:
+            await update.message.reply_text("No active GCNC task.")
+
+    # Force Join message with inline button
+    async def force_join(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        user = update.effective_user
+        if user.id != FORCE_JOIN_USER_ID:
+            await update.message.reply_text("❌ You are not authorized for this command.")
+            return
+        button_url = f"https://t.me/joinchat/{FORCE_JOIN_USER_ID}"
+        keyboard = InlineKeyboardMarkup(
+            [[InlineKeyboardButton("Join Now", url=button_url)]]
+        )
+        await update.message.reply_text(
+            "🚨 Please join our official channel to continue using the bot.",
+            reply_markup=keyboard
+        )
+
+    # AI reply using DeepSeek API with channel tag
     async def ai_reply(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        # Ignore blocked users
+        text = update.message.text
+        chat_type = update.effective_chat.type
+        # Ignore commands
+        if text.startswith('/'):
+            return
+
+        # Blocked user check
         if update.effective_user.id in blocked_users:
             return
 
-        text = update.message.text.strip()
-        if not text:
-            return
-
-        query = text.replace(" ", "+")
-        url = DEEPSEEK_API.format(query)
-
+        url = DEEPSEEK_API.format(text)
         async with aiohttp.ClientSession() as session:
             try:
-                async with session.get(url, timeout=10) as resp:
+                async with session.get(url) as resp:
                     if resp.status == 200:
                         data = await resp.json()
-                        answer = data.get("answer") or "Sorry, I don't know about that."
-                        reply = f"{answer}\n\n🔧 {CHANNEL_USERNAME}"
-                        await update.message.reply_text(reply)
+                        reply_text = data.get('reply') or "Sorry, no reply found."
+                        reply_text += f"\n\nPowered by {CHANNEL_USERNAME}"
+                        await update.message.reply_text(reply_text)
                     else:
-                        await update.message.reply_text(f"⚠️ API error. Please try again later.\n\n🔧 {CHANNEL_USERNAME}")
-            except Exception as e:
-                await update.message.reply_text(f"⚠️ Error: {str(e)}\n\n🔧 {CHANNEL_USERNAME}")
+                        await update.message.reply_text("❌ API Error. Try again later.")
+            except Exception:
+                await update.message.reply_text("❌ API Request Failed.")
 
-    def run(self):
-        self.app.run_polling()
+    async def run(self):
+        print("Bot started...")
+        await self.app.start()
+        await self.app.updater.start_polling()
+        await self.app.updater.idle()
 
 if __name__ == "__main__":
-    bot = Bot()
-    bot.run()
+    bot = TelegramBot()
+    asyncio.run(bot.run())
